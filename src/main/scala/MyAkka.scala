@@ -35,12 +35,11 @@ object Main extends App {
 
   val start = System.currentTimeMillis()
   source
-    .via(CsvParsing.lineScanner())
-    .map(e => e(indexOfLastName))
+    .via(Framing.delimiter(ByteString('\n'), maximumFrameLength = Int.MaxValue))
     .async // 非同期でファイルを読み込む
     .groupBy(groupSize, extractGroupId) // Group ごとに並列処理
     .buffer(10, OverflowStrategy.backpressure) // 下流に速度差がある場合に back pressure がかかるのを防止
-    .map(rec => rec.utf8String)
+    .map(rec => rec.utf8String.split(',')(indexOfLastName))
     .async // 下流が他のステップと比べて重そうなので
     .fold(acc_empty) { (acc: Map[String, Int], rec: String) =>
       acc + (rec -> (acc.getOrElse(rec, 0) + 1))
