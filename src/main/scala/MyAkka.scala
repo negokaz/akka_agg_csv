@@ -1,10 +1,12 @@
 import java.nio.file.Paths
 
 import akka.actor.ActorSystem
-import akka.stream.ActorMaterializer
+import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.stream.alpakka.csv.scaladsl.{CsvParsing, CsvToMap}
 import akka.stream.scaladsl._
 import akka.util.ByteString
+
+import scala.util.Success
 
 
 object Main extends App {
@@ -15,38 +17,45 @@ object Main extends App {
 
   // val path = if (params.isEmpty) "../fukuokaex/test_12_000_000.csv" else params(0)
   //val path = "../fukuokaex/test_3_000_000.csv"
-  val path = "/home/enpedasi/fukuokaex/test_3_000_000.csv"
+  val path = "./test_3_000_000.csv"
   val source = FileIO.fromPath(Paths.get(path))
 
   val acc_empty = Map.empty[String, Int]
   var resultMap = Map.empty[String, Int]
   val grp_col = "lastname"
 
+  val groupSize = 8
+
+  val indexOfLastName = 1
+
+  /** hashCode でグループ分け */
+  def extractGroupId(elem: ByteString) = {
+    Math.abs(elem.hashCode()) % groupSize
+  }
+
   val start = System.currentTimeMillis()
   source
     .via(CsvParsing.lineScanner())
-    .via(CsvToMap.withHeaders("firstname", "lastname", "gender", "birthday", "addr1", "addr2", "addr3", "state", "email", "zip", "tel", "attr", "regdate"))
-    .map(_.map(r => (r._1, r._2.utf8String))) // Map( birthday ->'1950/01/20', email -> 'enpedasi@heaven.com' )
-    .filter(rec => rec.get(grp_col) != None)
-    .groupBy(30, r => r(grp_col)(0)) // 頭一文字でグループ分け
-    .async
-    .fold(acc_empty) { (acc: Map[String, Int], rec: Map[String, String]) =>
-      val word = rec(grp_col)
-      val cnt = acc.getOrElse(word, 0)
-      acc.updated(word, cnt + 1)
+    .map(e => e(indexOfLastName))
+    .async // 非同期でファイルを読み込む
+    .groupBy(groupSize, extractGroupId) // Group ごとに並列処理
+    .buffer(10, OverflowStrategy.backpressure) // 下流に速度差がある場合に back pressure がかかるのを防止
+    .map(rec => rec.utf8String)
+    .async // 下流が他のステップと比べて重そうなので
+    .fold(acc_empty) { (acc: Map[String, Int], rec: String) =>
+      acc + (rec -> (acc.getOrElse(rec, 0) + 1))
     }
     .mergeSubstreams
-    .via(Flow[Map[String, Int]].fold(acc_empty) { (acc: Map[String, Int], rec: Map[String, Int]) =>
+    .runWith(Sink.fold(acc_empty) { (acc: Map[String, Int], rec: Map[String, Int]) =>
       acc ++ rec.map { case (k, v) => k -> (v + acc.getOrElse(k, 0)) }
     })
-    .runWith(Sink.foreach(e => {
-      resultMap = e
-    }))
-    .onComplete(done ⇒ {
-      val msec = (System.currentTimeMillis - start)
-      println(done)
-      resultMap.toSeq.sortWith(_._2 > _._2).take(10).foreach(println)
-      println(msec + "msec")
-      system.terminate()
-    })
+    .onComplete {
+      case Success(resultMap) ⇒
+        val msec = (System.currentTimeMillis - start)
+        resultMap.toSeq.sortWith(_._2 > _._2).take(10).foreach(println)
+        println(msec + "msec")
+        system.terminate()
+      case _ =>
+        system.terminate()
+    }
 }
