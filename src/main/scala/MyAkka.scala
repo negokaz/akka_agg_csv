@@ -1,7 +1,7 @@
 import java.nio.file.Paths
 
 import akka.actor.ActorSystem
-import akka.stream.{ActorMaterializer, OverflowStrategy}
+import akka.stream.{ActorMaterializer, ActorMaterializerSettings, OverflowStrategy}
 import akka.stream.scaladsl._
 
 import scala.util.Success
@@ -9,7 +9,8 @@ import scala.util.Success
 
 object Main extends App {
   implicit val system = ActorSystem("MyAkkaActor")
-  implicit val materializer = ActorMaterializer()
+  val materializerSettings = ActorMaterializerSettings(system).withDispatcher("csv-aggregate-dispatcher")
+  implicit val materializer = ActorMaterializer(materializerSettings)
   implicit val dipatcher = system.dispatcher
 
 
