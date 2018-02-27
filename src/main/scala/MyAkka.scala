@@ -35,7 +35,7 @@ object Main extends App {
 
   val start = System.currentTimeMillis()
   source
-    .map(rec => rec.split(',')(indexOfLastName))
+    .map(rec => rec.split(",")(indexOfLastName))
     .groupBy(groupSize, extractGroupId) // Group ごとに並列処理
     .buffer(10, OverflowStrategy.backpressure) // 下流に速度差がある場合に back pressure がかかるのを防止
     .fold(acc_empty) { (acc: Map[String, Int], rec: String) =>
