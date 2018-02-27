@@ -34,11 +34,9 @@ object Main extends App {
 
   val start = System.currentTimeMillis()
   source
-    .async // 非同期でファイルを読み込む
     .map(rec => rec.split(',')(indexOfLastName))
     .groupBy(groupSize, extractGroupId) // Group ごとに並列処理
     .buffer(10, OverflowStrategy.backpressure) // 下流に速度差がある場合に back pressure がかかるのを防止
-    .async // 下流が他のステップと比べて重そうなので
     .fold(acc_empty) { (acc: Map[String, Int], rec: String) =>
       acc + (rec -> (acc.getOrElse(rec, 0) + 1))
     }
