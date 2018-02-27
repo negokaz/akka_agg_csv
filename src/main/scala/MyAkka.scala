@@ -3,6 +3,7 @@ import java.nio.file.Paths
 import akka.actor.ActorSystem
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings, OverflowStrategy}
 import akka.stream.scaladsl._
+import org.apache.commons.lang3.StringUtils
 
 import scala.util.Success
 
@@ -35,7 +36,7 @@ object Main extends App {
 
   val start = System.currentTimeMillis()
   source
-    .map(rec => rec.split(",")(indexOfLastName))
+    .map(rec => StringUtils.split(rec, ",", indexOfLastName + 2)(indexOfLastName))
     .groupBy(groupSize, extractGroupId) // Group ごとに並列処理
     .buffer(10, OverflowStrategy.backpressure) // 下流に速度差がある場合に back pressure がかかるのを防止
     .fold(acc_empty) { (acc: Map[String, Int], rec: String) =>
