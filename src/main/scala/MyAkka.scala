@@ -5,6 +5,7 @@ import akka.stream.{ActorMaterializer, ActorMaterializerSettings, OverflowStrate
 import akka.stream.scaladsl._
 import org.apache.commons.lang3.StringUtils
 
+import scala.collection.mutable
 import scala.util.Success
 
 
@@ -39,11 +40,12 @@ object Main extends App {
     .map(rec => StringUtils.split(rec, ",", indexOfLastName + 2)(indexOfLastName))
     .groupBy(groupSize, extractGroupId) // Group ごとに並列処理
     .buffer(10, OverflowStrategy.backpressure) // 下流に速度差がある場合に back pressure がかかるのを防止
-    .fold(acc_empty) { (acc: Map[String, Int], rec: String) =>
-      acc + (rec -> (acc.getOrElse(rec, 0) + 1))
+    .fold(mutable.AnyRefMap.empty[String, Int]) { (acc: mutable.AnyRefMap[String, Int], rec: String) =>
+      // 効率が良い AnyRefMap を使う
+      acc.updated(rec, acc.getOrElse(rec, 0) + 1)
     }
     .mergeSubstreams
-    .runWith(Sink.fold(acc_empty) { (acc: Map[String, Int], rec: Map[String, Int]) =>
+    .runWith(Sink.fold(acc_empty) { (acc: Map[String, Int], rec: mutable.Map[String, Int]) =>
       // LastName の hashCode でグループ分けしたので、acc と rec で同じキーの要素は存在しない
       acc ++ rec
     })
