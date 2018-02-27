@@ -4,6 +4,7 @@ import akka.actor.ActorSystem
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.stream.scaladsl._
 
+import scala.collection.mutable
 import scala.util.Success
 
 
@@ -19,7 +20,7 @@ object Main extends App {
   val fileSource = scala.io.Source.fromFile(path, enc = "utf-8")
   val source = Source.fromIterator(() => fileSource.getLines())
 
-  val acc_empty = Map.empty[String, Int]
+  val acc_empty = mutable.Map.empty[String, Int]
   var resultMap = Map.empty[String, Int]
   val grp_col = "lastname"
 
@@ -37,11 +38,11 @@ object Main extends App {
     .map(rec => rec.split(',')(indexOfLastName))
     .groupBy(groupSize, extractGroupId) // Group ごとに並列処理
     .buffer(10, OverflowStrategy.backpressure) // 下流に速度差がある場合に back pressure がかかるのを防止
-    .fold(acc_empty) { (acc: Map[String, Int], rec: String) =>
-      acc + (rec -> (acc.getOrElse(rec, 0) + 1))
+    .fold(acc_empty) { (acc: mutable.Map[String, Int], rec: String) =>
+      acc.updated(rec, (acc.getOrElse(rec, 0) + 1))
     }
     .mergeSubstreams
-    .runWith(Sink.fold(acc_empty) { (acc: Map[String, Int], rec: Map[String, Int]) =>
+    .runWith(Sink.fold(acc_empty) { (acc: mutable.Map[String, Int], rec: mutable.Map[String, Int]) =>
       // LastName の hashCode でグループ分けしたので、acc と rec で同じキーの要素は存在しない
       acc ++ rec
     })
