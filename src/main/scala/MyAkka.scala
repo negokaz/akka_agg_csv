@@ -34,7 +34,6 @@ object Main extends App {
   source
     .map(rec => StringUtils.split(rec, ",", indexOfLastName + 2)(indexOfLastName)) // String#split は正規表現を用いるため効率が悪い
     .groupBy(groupSize, rec => Math.abs(rec.hashCode()) % groupSize) // String#hashCode を使って、名前ごとに一意の group にディスパッチされるようにする
-    .buffer(10, OverflowStrategy.backpressure) // 下流に速度差がある場合に back pressure がかかるのを防止
     .fold(AnyRefMap.empty[String, Int]) { (acc, rec: String) =>
       // 効率が良い AnyRefMap を使う
       acc.updated(rec, acc.getOrElse(rec, 0) + 1)
