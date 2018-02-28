@@ -1,7 +1,5 @@
-import java.nio.file.Paths
-
 import akka.actor.ActorSystem
-import akka.stream.{ActorMaterializer, ActorMaterializerSettings, OverflowStrategy}
+import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
 import akka.stream.scaladsl._
 import org.apache.commons.lang3.StringUtils
 
