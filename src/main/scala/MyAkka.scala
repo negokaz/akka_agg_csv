@@ -22,10 +22,6 @@ object Main extends App {
   val fileSource = scala.io.Source.fromFile(path, enc = "utf-8")
   val source = Source.fromIterator(() => fileSource.getLines())
 
-  val acc_empty = Map.empty[String, Int]
-  var resultMap = Map.empty[String, Int]
-  val grp_col = "lastname"
-
   val groupSize = 30
 
   val indexOfLastName = 1
