@@ -5,7 +5,7 @@ import akka.stream.{ActorMaterializer, ActorMaterializerSettings, OverflowStrate
 import akka.stream.scaladsl._
 import org.apache.commons.lang3.StringUtils
 
-import scala.collection.mutable
+import scala.collection.mutable.AnyRefMap
 import scala.util.Success
 
 
@@ -30,23 +30,18 @@ object Main extends App {
 
   val indexOfLastName = 1
 
-  /** hashCode でグループ分け */
-  def extractGroupId(elem: String) = {
-    Math.abs(elem.hashCode()) % groupSize
-  }
-
   val start = System.currentTimeMillis()
   source
-    .map(rec => StringUtils.split(rec, ",", indexOfLastName + 2)(indexOfLastName))
-    .groupBy(groupSize, extractGroupId) // Group ごとに並列処理
+    .map(rec => StringUtils.split(rec, ",", indexOfLastName + 2)(indexOfLastName)) // String#split は正規表現を用いるため効率が悪い
+    .groupBy(groupSize, rec => Math.abs(rec.hashCode()) % groupSize) // String#hashCode を使って、名前ごとに一意の group にディスパッチされるようにする
     .buffer(10, OverflowStrategy.backpressure) // 下流に速度差がある場合に back pressure がかかるのを防止
-    .fold(mutable.AnyRefMap.empty[String, Int]) { (acc: mutable.AnyRefMap[String, Int], rec: String) =>
+    .fold(AnyRefMap.empty[String, Int]) { (acc, rec: String) =>
       // 効率が良い AnyRefMap を使う
       acc.updated(rec, acc.getOrElse(rec, 0) + 1)
     }
     .mergeSubstreams
-    .runWith(Sink.fold(acc_empty) { (acc: Map[String, Int], rec: mutable.Map[String, Int]) =>
-      // LastName の hashCode でグループ分けしたので、acc と rec で同じキーの要素は存在しない
+    .runWith(Sink.fold(AnyRefMap.empty[String, Int]) { (acc, rec: AnyRefMap[String, Int]) =>
+      // LastName の hashCode でグループ分けしたため、acc と rec で同じキーの要素は存在しない
       acc ++ rec
     })
     .onComplete {
