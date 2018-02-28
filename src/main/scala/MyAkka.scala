@@ -11,7 +11,9 @@ import scala.util.Success
 
 object Main extends App {
   implicit val system = ActorSystem("MyAkkaActor")
-  val materializerSettings = ActorMaterializerSettings(system).withDispatcher("csv-aggregate-dispatcher")
+  val materializerSettings =
+    ActorMaterializerSettings(system)
+      .withDispatcher("csv-aggregate-dispatcher") // 専用の dispatcher（スレッドプール）を用意
   implicit val materializer = ActorMaterializer(materializerSettings)
   implicit val dipatcher = system.dispatcher
 
@@ -19,17 +21,20 @@ object Main extends App {
   // val path = if (params.isEmpty) "../fukuokaex/test_12_000_000.csv" else params(0)
   //val path = "../fukuokaex/test_3_000_000.csv"
   val path = "./test_3_000_000.csv"
+
+  /** 集計処理を何並列で処理するか */
+  val parallelism = 30
+
+  /** CSVの何列目に LastName があるか */
+  val columnNumberOfLastName = 2
+
   val fileSource = scala.io.Source.fromFile(path, enc = "utf-8")
   val source = Source.fromIterator(() => fileSource.getLines())
 
-  val groupSize = 30
-
-  val indexOfLastName = 1
-
   val start = System.currentTimeMillis()
   source
-    .map(rec => StringUtils.split(rec, ",", indexOfLastName + 2)(indexOfLastName)) // String#split は正規表現を用いるため効率が悪い
-    .groupBy(groupSize, rec => Math.abs(rec.hashCode()) % groupSize) // String#hashCode を使って、名前ごとに一意の group にディスパッチされるようにする
+    .map(rec => StringUtils.split(rec, ",", columnNumberOfLastName + 1)(columnNumberOfLastName - 1)) // String#split は正規表現を用いるため効率が悪い
+    .groupBy(parallelism, rec => Math.abs(rec.hashCode()) % parallelism) // String#hashCode を使って、名前ごとに一意の group にディスパッチされるようにする
     .fold(AnyRefMap.empty[String, Int]) { (acc, rec: String) =>
       // 効率が良い AnyRefMap を使う
       acc.updated(rec, acc.getOrElse(rec, 0) + 1)
