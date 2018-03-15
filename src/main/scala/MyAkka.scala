@@ -21,7 +21,7 @@ object Main extends App {
   val path = "./test_3_000_000.csv"
 
   /** 集計処理を何並列で処理するか */
-  val parallelism = 2
+  val parallelism = 4
 
   /** CSVの何列目に LastName があるか */
   val columnNumberOfLastName = 2
@@ -34,13 +34,12 @@ object Main extends App {
       .map(rec => StringUtils.split(rec, ",", columnNumberOfLastName + 1)(columnNumberOfLastName - 1)) // String#split は正規表現を用いるため効率が悪い
       .toMat(PartitionHub.sink(
         partitioner = (size, rec) => Math.abs(rec.hashCode()) % size,
-        startAfterNrOfConsumers = parallelism))(Keep.right)
+        startAfterNrOfConsumers = parallelism))(Keep.right).run()
 
   val start = System.currentTimeMillis()
   Source((1 to parallelism))
-    .flatMapConcat({ i =>
-      println(s"$i start")
-      partitionedSource.run()
+    .flatMapMerge(parallelism, { i =>
+      partitionedSource
         .fold(AnyRefMap.empty[String, Int]) { (acc, rec: String) =>
           // 効率が良い AnyRefMap を使う
           acc.updated(rec, acc.getOrElse(rec, 0) + 1)
